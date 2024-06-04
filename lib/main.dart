@@ -90,8 +90,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> buttonLoginPressed() async {
     try {
-      final NaverAccessToken res = await FlutterNaverLogin.refreshAccessTokenWithRefreshToken();
-      final  naverAccessTokenoken = res.accessToken;
+      final NaverLoginResult res = await FlutterNaverLogin.logIn();
+      print("네이버로그인 성공 : ${res.toString()}");
+
+      final NaverAccessToken nat = await FlutterNaverLogin.currentAccessToken;
+      final naverAccessTokenoken = nat.accessToken;
       print("네이버 로그인 : ${naverAccessTokenoken}");
 
       //2. 토큰을 스프링 서버에 전달하기(스프링 서버한테 나 인증했어!! 라고 알려주는 것)
@@ -109,7 +112,7 @@ class _MyHomePageState extends State<MyHomePage> {
       //5. static, const 변수, riverpod 상태관리(생략)
 
     } catch (error) {
-      print('네이버 로그인 실패 $error');
+      print('네이버 로그인 실패 ${error.toString()}');
     }
   }
 
@@ -125,9 +128,9 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> buttonLogoutPressed() async {
     try {
       await FlutterNaverLogin.logOut();
-    } catch (error) {
-      print(error);
 
+    } catch (error) {
+      _showSnackError(error.toString());
     }
   }
 
