@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="client_id">hagbQ0neJqK_tY4moEfX</string>
+    <string name="client_secret">9UeKuj_kcO</string>
+    <string name="client_name">naver_oauth_login</string>
+</resources>
