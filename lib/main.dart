@@ -1,154 +1,149 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-import 'package:flutter_naver_login/flutter_naver_login.dart';
-import 'package:oauth_naver_flutter/http.dart';
+import 'package:dio/dio.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-final GlobalKey<ScaffoldMessengerState> snackbarKey =
-GlobalKey<ScaffoldMessengerState>();
 
-void main() => runApp(MyApp());
+void main() {
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Naver Login',
-      scaffoldMessengerKey: snackbarKey,
+      title: 'Naver Login Demo',
       theme: ThemeData(
-        primarySwatch: Colors.green,
-        primaryColor: const Color(0xFF00c73c),
-        canvasColor: const Color(0xFFfafafa),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            textStyle: TextStyle(
-              fontSize: 12.0,
-              color: Colors.black,
-              fontWeight: FontWeight.normal,
-              fontFamily: "Roboto",
-            ),
-          ),
-        ),
+        primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(),
+      home: LoginScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key}) : super(key: key);
-  @override
-  _MyHomePageState createState() => new _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-   /// Show [error] content in a ScaffoldMessenger snackbar
-  void _showSnackError(String error) {
-    snackbarKey.currentState?.showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.red,
-        content: Text(error.toString()),
-      ),
-    );
-  }
+class LoginScreen extends StatelessWidget {
+  final String clientId = 'YOUR_CLIENT_ID';
+  final String clientSecret = 'YOUR_CLIENT_SECRET';
+  final String redirectUri = 'YOUR_REDIRECT_URI';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Flutter Naver Login Sample',
-          style: TextStyle(color: Colors.white),
+        title: Text('Naver Login Demo'),
+      ),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () {
+            final String state = DateTime.now().millisecondsSinceEpoch.toString();
+            final String url =
+                'https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=$clientId&redirect_uri=$redirectUri&state=$state';
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => WebViewLogin(
+                  url: url,
+                  redirectUri: redirectUri,
+                  clientId: clientId,
+                  clientSecret: clientSecret,
+                ),
+              ),
+            );
+          },
+          child: Text('Login with Naver'),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-        children: [
-          ElevatedButton(
-            onPressed: buttonLoginPressed,
-            child: const Text("네이버 로그인"),
-          ),
-          ElevatedButton(
-            onPressed: buttonLogoutPressed,
-            child: const Text("LogOut"),
-          ),
-          ElevatedButton(
-            onPressed: buttonLogoutAndDeleteTokenPressed,
-            child: const Text("LogOutAndDeleteToken"),
-          ),
-          ElevatedButton(
-            onPressed: buttonTokenPressed,
-            child: const Text("GetToken"),
-          ),
-          ElevatedButton(
-            onPressed: buttonGetUserPressed,
-            child: const Text("GetUser"),
-          )
-        ],
+    );
+  }
+}
+
+class WebViewLogin extends StatefulWidget {
+  final String url;
+  final String redirectUri;
+  final String clientId;
+  final String clientSecret;
+
+  WebViewLogin({
+    required this.url,
+    required this.redirectUri,
+    required this.clientId,
+    required this.clientSecret,
+  });
+
+  @override
+  _WebViewLoginState createState() => _WebViewLoginState();
+}
+
+class _WebViewLoginState extends State<WebViewLogin> {
+  late WebViewController _controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Naver Login'),
+      ),
+      body: WebView(
+        initialUrl: widget.url,
+        javascriptMode: JavascriptMode.unrestricted,
+        onWebViewCreated: (WebViewController webViewController) {
+          _controller = webViewController;
+        },
+        navigationDelegate: (NavigationRequest request) {
+          if (request.url.startsWith(widget.redirectUri)) {
+            final Uri uri = Uri.parse(request.url);
+            final String? code = uri.queryParameters['code'];
+            final String? state = uri.queryParameters['state'];
+
+            if (code != null) {
+              _getAccessToken(code, state!);
+            }
+            Navigator.pop(context);
+            return NavigationDecision.prevent;
+          }
+          return NavigationDecision.navigate;
+        },
       ),
     );
   }
 
-  Future<void> buttonLoginPressed() async {
+  Future<void> _getAccessToken(String code, String state) async {
+    final dio = Dio();
+
     try {
-      final NaverLoginResult res = await FlutterNaverLogin.logIn();
-      print("네이버로그인 성공 : ${res.toString()}");
+      final response = await dio.post(
+        'https://nid.naver.com/oauth2.0/token',
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+        ),
+        data: {
+          'grant_type': 'authorization_code',
+          'client_id': widget.clientId,
+          'client_secret': widget.clientSecret,
+          'code': code,
+          'state': state,
+        },
+      );
 
-      final NaverAccessToken nat = await FlutterNaverLogin.currentAccessToken;
-      final naverAccessTokenoken = nat.accessToken;
-      print("네이버 로그인 : ${naverAccessTokenoken}");
+      final Map<String, dynamic> responseBody = response.data;
+      final String accessToken = responseBody['access_token'];
 
-      //2. 토큰을 스프링 서버에 전달하기(스프링 서버한테 나 인증했어!! 라고 알려주는 것)
-      final response =  await dio.get("/oauth/naver/callback", queryParameters: {"accessToken" : naverAccessTokenoken});
-      print("👍👍👍👍👍👍👍👍👍👍");
-      response.toString();
+      // 여기서 accessToken을 사용하여 네이버 API 호출
+      // 예: 사용자 프로필 정보 가져오기
 
-      //3. 토큰(스프링서버)의 토큰 응답받기
-      final blogAccessToken = response.headers["Authorization"]!.first;
-      print("blogAccessToken : ${blogAccessToken}");
+      final profileResponse = await dio.get(
+        'https://openapi.naver.com/v1/nid/me',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        ),
+      );
 
-      //4. 시큐어 스토리지에 저장
-      secureStorage.write(key: "blogAccessToken", value: blogAccessToken);
-
-      //5. static, const 변수, riverpod 상태관리(생략)
-
-    } catch (error) {
-      print('네이버 로그인 실패 ${error.toString()}');
-    }
-  }
-
-  Future<void> buttonTokenPressed() async {
-    try {
-      final NaverAccessToken res = await FlutterNaverLogin.currentAccessToken;
-
-    } catch (error) {
-      _showSnackError(error.toString());
-    }
-  }
-
-  Future<void> buttonLogoutPressed() async {
-    try {
-      await FlutterNaverLogin.logOut();
-
-    } catch (error) {
-      _showSnackError(error.toString());
-    }
-  }
-
-  Future<void> buttonLogoutAndDeleteTokenPressed() async {
-    try {
-      await FlutterNaverLogin.logOutAndDeleteToken();
-
-    } catch (error) {
-      _showSnackError(error.toString());
-    }
-  }
-
-  Future<void> buttonGetUserPressed() async {
-    try {
-      final NaverAccountResult res = await FlutterNaverLogin.currentAccount();
-
-    } catch (error) {
-      _showSnackError(error.toString());
+      final Map<String, dynamic> profile = profileResponse.data;
+      print(profile);
+    } catch (e) {
+      print('Error: $e');
     }
   }
 }

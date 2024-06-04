@@ -31,6 +31,11 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- 이 라인 추가 -->
+            <meta-data
+                android:name="io.flutter.embedding.android.WorkManagerInitializer"
+                android:value="true" />
+            <!-- 여기까지 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
